@@ -1,0 +1,262 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+enum Role {
+  STUDENT
+  ADMIN
+}
+
+enum PlanType {
+  TEST_SERIES
+  QBANK
+  MENTORSHIP
+  SESSIONS
+}
+
+enum PlanStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  CREATED
+  CAPTURED
+  FAILED
+  REFUNDED
+}
+
+enum TestKind {
+  GRAND
+  SUBJECT
+  INTEGRATED
+  TOPIC
+  PHARMA
+  PYQ
+  OTHER
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  EXPIRED
+}
+
+model User {
+  id           String         @id @default(cuid())
+  authId       String         @unique
+  name         String
+  email        String         @unique
+  phone        String?
+  avatarUrl    String?
+  role         Role           @default(STUDENT)
+  examYear     Int?
+  referralCode String?        @unique
+  referredById String?
+  createdAt    DateTime       @default(now())
+  userPlans    UserPlan[]
+  payments     Payment[]
+  attempts     Attempt[]
+  bookmarks    Bookmark[]
+  logins       LoginHistory[]
+}
+
+model Plan {
+  id          String       @id @default(cuid())
+  slug        String       @unique
+  name        String
+  type        PlanType
+  description String?
+  features    Json
+  isActive    Boolean      @default(true)
+  options     PlanOption[]
+  tests       Test[]
+  userPlans   UserPlan[]
+}
+
+model PlanOption {
+  id           String  @id @default(cuid())
+  planId       String
+  plan         Plan    @relation(fields: [planId], references: [id])
+  label        String
+  durationDays Int?
+  sessionCount Int?
+  pricePaise   Int
+  mrpPaise     Int?
+  isActive     Boolean @default(true)
+}
+
+model UserPlan {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id])
+  planId       String
+  plan         Plan       @relation(fields: [planId], references: [id])
+  paymentId    String?    @unique
+  source       String
+  activatedAt  DateTime
+  expiresAt    DateTime?
+  sessionsLeft Int?
+  status       PlanStatus @default(ACTIVE)
+
+  @@index([userId, status, expiresAt])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id])
+  planId            String
+  optionId          String
+  amountPaise       Int
+  discountPaise     Int           @default(0)
+  couponCode        String?
+  status            PaymentStatus @default(CREATED)
+  razorpayOrderId   String        @unique
+  razorpayPaymentId String?       @unique
+  razorpaySignature String?
+  invoiceUrl        String?
+  createdAt         DateTime      @default(now())
+  capturedAt        DateTime?
+
+  @@index([userId, createdAt])
+}
+
+model Test {
+  id           String         @id @default(cuid())
+  title        String
+  kind         TestKind
+  exam         String         @default("FMGE")
+  planId       String?
+  plan         Plan?          @relation(fields: [planId], references: [id])
+  totalQs      Int
+  durationMin  Int
+  setCount     Int            @default(1)
+  marksCorrect Float          @default(1)
+  marksWrong   Float          @default(0)
+  passMarks    Float?
+  startsAt     DateTime?
+  endsAt       DateTime?
+  isPublished  Boolean        @default(false)
+  createdAt    DateTime       @default(now())
+  questions    TestQuestion[]
+  attempts     Attempt[]
+}
+
+model Question {
+  id                  String         @id @default(cuid())
+  subject             String
+  topic               String?
+  stem                String
+  imageUrl            String?
+  explanation         String?
+  explanationImageUrl String?
+  correctOptionId     String?
+  difficulty          Int?
+  options             Option[]
+  tests               TestQuestion[]
+  bookmarks           Bookmark[]
+}
+
+model Option {
+  id         String   @id @default(cuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  label      String
+  text       String
+  imageUrl   String?
+  sortOrder  Int
+}
+
+model TestQuestion {
+  testId     String
+  questionId String
+  setNo      Int      @default(1)
+  sortOrder  Int      @default(1)
+  test       Test     @relation(fields: [testId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id])
+
+  @@id([testId, questionId])
+}
+
+model Attempt {
+  id          String          @id @default(cuid())
+  userId      String
+  user        User            @relation(fields: [userId], references: [id])
+  testId      String
+  test        Test            @relation(fields: [testId], references: [id])
+  status      AttemptStatus   @default(IN_PROGRESS)
+  startedAt   DateTime        @default(now())
+  deadlineAt  DateTime
+  submittedAt DateTime?
+  score       Float?
+  correct     Int?
+  wrong       Int?
+  unattempted Int?
+  percentile  Float?
+  rank        Int?
+  answers     AttemptAnswer[]
+
+  @@unique([userId, testId])
+  @@index([testId, score])
+}
+
+model AttemptAnswer {
+  id               String   @id @default(cuid())
+  attemptId        String
+  questionId       String
+  selectedOptionId String?
+  markedForReview  Boolean  @default(false)
+  timeSpentSec     Int      @default(0)
+  isCorrect        Boolean?
+  attempt          Attempt  @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+}
+
+model Bookmark {
+  id         String   @id @default(cuid())
+  userId     String
+  questionId String
+  note       String?
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+  question   Question @relation(fields: [questionId], references: [id])
+
+  @@unique([userId, questionId])
+}
+
+model Announcement {
+  id          String             @id @default(cuid())
+  title       String
+  link        String?
+  publishedAt DateTime           @default(now())
+  reads       AnnouncementRead[]
+}
+
+model AnnouncementRead {
+  userId         String
+  announcementId String
+  announcement   Announcement @relation(fields: [announcementId], references: [id])
+
+  @@id([userId, announcementId])
+}
+
+model LoginHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  ip        String?
+  userAgent String?
+  device    String?
+  city      String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
