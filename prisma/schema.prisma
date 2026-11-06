@@ -53,6 +53,7 @@ model User {
   authId       String         @unique
   name         String
   email        String         @unique
+  passwordHash String?
   phone        String?
   avatarUrl    String?
   role         Role           @default(STUDENT)

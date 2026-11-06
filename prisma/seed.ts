@@ -47,7 +47,7 @@ async function main() {
     },
   });
 
-  // 3. Assign active plan to student
+  // 3. Assign active plan to student (Fixed math syntax for expiresAt)
   await prisma.userPlan.create({
     data: {
       userId: student.id,
