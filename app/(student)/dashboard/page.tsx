@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { getDashboardData } from "../../actions/dashboard";
 import Link from 'next/link';
 import { ArrowRight, TrendingUp, Target } from 'lucide-react';

@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { Target, Clock, Trophy, BarChart2, AlertCircle, CheckCircle2, XCircle, MinusCircle, Calendar, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 
