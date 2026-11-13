@@ -28,7 +28,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Selected plan option not found or inactive" }, { status: 404 });
     }
 
-    const amountPaise = planOption.pricePaise;
+    // PATCH: Set to 10000 paise (₹100) for testing, or use planOption.pricePaise for production
+    let amountPaise = planOption.pricePaise;
+    
+    // Uncomment the line below if you want to force a ₹100 test payment right now:
+    amountPaise = 10000; 
 
     // 2. Create Razorpay Order
     const options = {
