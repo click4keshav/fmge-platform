@@ -7,8 +7,7 @@ import {
   Sparkles, 
   ShieldCheck, 
   CreditCard, 
-  ArrowRight, 
-  Lock 
+  ArrowRight 
 } from 'lucide-react';
 
 type Plan = {
@@ -19,6 +18,7 @@ type Plan = {
   price: number;
   validity: string;
   isPopular: boolean;
+  optionId: string; // Maps to your database PlanOption id if needed, or pass fallback
   features: string[];
 };
 
@@ -31,6 +31,7 @@ const pricingPlans: Plan[] = [
     price: 5999,
     validity: "year",
     isPopular: false,
+    optionId: "cmw1yqbpt0002ulqful9d40pl", // From your Supabase screenshot or use for mapping
     features: [
       "Full Grand Tests & PYTs",
       "Detailed Performance Analytics",
@@ -45,6 +46,7 @@ const pricingPlans: Plan[] = [
     price: 11999,
     validity: "year",
     isPopular: true,
+    optionId: "cmw1yqbpt0002ulqful9d40pl",
     features: [
       "All Test Series Features",
       "Custom QBank Modules",
@@ -59,6 +61,7 @@ const pricingPlans: Plan[] = [
     price: 43949,
     validity: "year",
     isPopular: false,
+    optionId: "cmw1yqbpt0002ulqful9d40pl",
     features: [
       "QBank & Test Series Included",
       "Personal 1:1 Mentor & Strategy",
@@ -72,16 +75,72 @@ export default function PlansPage() {
   const [checkoutPlan, setCheckoutPlan] = useState<Plan | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Find the price of the currently active plan to handle upgrade/downgrade logic
   const activePlanPrice = pricingPlans.find(p => p.id === activePlanId)?.price || 0;
 
-  const handleCheckoutHandoff = () => {
+  // Real Razorpay Checkout Handoff
+  const handleRazorpayCheckout = async () => {
+    if (!checkoutPlan) return;
     setIsProcessing(true);
-    setTimeout(() => {
+
+    try {
+      // 1. Call your backend order creation route
+      const response = await fetch('/api/payments/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: "user_test_aditya", // Replace with real session userId if available
+          planId: checkoutPlan.id,
+          optionId: checkoutPlan.optionId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to initiate payment order");
+      }
+
+      // 2. Load Razorpay script dynamically
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      document.body.appendChild(script);
+
+      script.onload = () => {
+        const options = {
+          key: data.keyId,
+          amount: data.amount, // amount in paise from backend
+          currency: data.currency,
+          name: "Fornix FMGE",
+          description: checkoutPlan.name,
+          order_id: data.orderId,
+          handler: async function (response: any) {
+            alert(`Payment Successful! Payment ID: ${response.razorpay_payment_id}`);
+            setIsProcessing(false);
+            setCheckoutPlan(null);
+            window.location.href = '/dashboard';
+          },
+          prefill: {
+            name: "Aditya",
+            email: "aditya@gmail.com",
+          },
+          theme: {
+            color: "#f97316",
+          },
+        };
+
+        const paymentWindow = new (window as any).Razorpay(options);
+        paymentWindow.open();
+        paymentWindow.on('payment.failed', function (response: any) {
+          alert(`Payment failed: ${response.error.description}`);
+          setIsProcessing(false);
+        });
+      };
+    } catch (err: any) {
+      console.error("Checkout error:", err);
+      alert(err.message || "Something went wrong initiating checkout.");
       setIsProcessing(false);
-      alert("Redirecting to Razorpay Secure Checkout...");
-      setCheckoutPlan(null);
-    }, 1500);
+    }
   };
 
   return (
@@ -110,7 +169,6 @@ export default function PlansPage() {
       <div className="grid lg:grid-cols-3 gap-8 max-w-6xl mx-auto items-stretch">
         {pricingPlans.map((plan) => {
           const isCurrentPlan = activePlanId === plan.id;
-          // If the plan they are looking at is cheaper than their active plan, it's a downgrade
           const isDowngrade = activePlanId !== null && plan.price < activePlanPrice;
           
           return (
@@ -213,7 +271,7 @@ export default function PlansPage() {
               </div>
             </div>
             <div className="p-6 sm:p-8 border-t border-zinc-800/80 bg-[#181717] mt-auto">
-              <button onClick={handleCheckoutHandoff} disabled={isProcessing} className="w-full py-4 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-70">
+              <button onClick={handleRazorpayCheckout} disabled={isProcessing} className="w-full py-4 bg-orange-600 hover:bg-orange-500 text-white font-bold rounded-xl flex items-center justify-center gap-2 disabled:opacity-70">
                 {isProcessing ? <span className="animate-pulse">Initializing Gateway...</span> : <> <CreditCard className="w-5 h-5" /> Proceed to Pay ₹{checkoutPlan.price.toLocaleString()} </>}
               </button>
             </div>

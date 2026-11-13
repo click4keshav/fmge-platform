@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     let amountPaise = planOption.pricePaise;
     
     // Uncomment the line below if you want to force a ₹100 test payment right now:
-    amountPaise = 10000; 
+    // amountPaise = 10000; 
 
     // 2. Create Razorpay Order
     const options = {
