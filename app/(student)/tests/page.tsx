@@ -1,8 +1,10 @@
+import { connection } from 'next/server';
 import { getDashboardData } from "../../actions/dashboard";
 import Link from 'next/link';
 import { PlayCircle, Clock, FileText, CheckCircle2, Calendar, Lock } from 'lucide-react';
 
 export default async function TestsHubPage() {
+    await connection();
   // Fetch tests from your database
   const { tests } = await getDashboardData();
 

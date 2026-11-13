@@ -1,9 +1,10 @@
-export const dynamic = "force-dynamic";
+import { connection } from 'next/server';
 import { getDashboardData } from "../../actions/dashboard";
 import Link from 'next/link';
 import { ArrowRight, TrendingUp, Target } from 'lucide-react';
 
 export default async function DashboardPage() {
+  await connection(); // Put it right here!
   const { student } = await getDashboardData(); 
 
   return (
