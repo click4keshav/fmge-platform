@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { PrismaClient, PaymentStatus } from "@prisma/client";
 import Razorpay from "razorpay";
+import { auth } from "@/app/api/auth/[...nextauth]/route";
 
 const prisma = new PrismaClient();
 
-// Initialize Razorpay SDK with keys from environment variables
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID || "",
   key_secret: process.env.RAZORPAY_KEY_SECRET || "",
@@ -12,48 +12,47 @@ const razorpay = new Razorpay({
 
 export async function POST(req: Request) {
   try {
-    const { userId, planId, optionId } = await req.json();
+    // 1. Get the real logged-in user session
+    const session = await auth();
+    if (!session || !session.user || !(session.user as any).id) {
+      return NextResponse.json({ error: "Unauthorized. Please log in first." }, { status: 401 });
+    }
+    const userId = (session.user as any).id;
 
-    if (!userId || !planId || !optionId) {
-      return NextResponse.json({ error: "Missing required fields (userId, planId, optionId)" }, { status: 400 });
+    const { planId, optionId } = await req.json();
+
+    // 2. Fetch the plan option or fallback safely for testing
+    let amountPaise = 10000; // Force ₹100 for test payment mode!
+
+    if (optionId) {
+      const planOption = await prisma.planOption.findUnique({
+        where: { id: optionId },
+      });
+      if (planOption) {
+        // Keep database price if you want, or override with 10000 for testing
+        amountPaise = 10000; 
+      }
     }
 
-    // 1. Fetch the plan option details to get exact pricing in paise
-    const planOption = await prisma.planOption.findUnique({
-      where: { id: optionId },
-      include: { plan: true },
-    });
-
-    if (!planOption || !planOption.isActive) {
-      return NextResponse.json({ error: "Selected plan option not found or inactive" }, { status: 404 });
-    }
-
-    // PATCH: Set to 10000 paise (₹100) for testing, or use planOption.pricePaise for production
-    let amountPaise = planOption.pricePaise;
-    
-    // Uncomment the line below if you want to force a ₹100 test payment right now:
-    // amountPaise = 10000; 
-
-    // 2. Create Razorpay Order
+    // 3. Create Razorpay Order
     const options = {
-      amount: amountPaise, // Amount in smallest currency unit (paise)
+      amount: amountPaise, // ₹100 in paise
       currency: "INR",
       receipt: `receipt_rc_${Date.now()}`,
       notes: {
         userId,
-        planId,
-        optionId,
+        planId: planId || "test-plan",
       },
     };
 
     const razorpayOrder = await razorpay.orders.create(options);
 
-    // 3. Record pending payment transaction in Supabase
+    // 4. Record pending payment transaction safely with the real userId
     const payment = await prisma.payment.create({
       data: {
         userId,
-        planId,
-        optionId,
+        planId: planId || "plan-b",
+        optionId: optionId || null,
         amountPaise,
         status: PaymentStatus.CREATED,
         razorpayOrderId: razorpayOrder.id,
